@@ -1,0 +1,24 @@
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.5.2.0
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Rentality.PriceUpdater", "Rentality.PriceUpdater.csproj", "{63F127D6-1CF8-73F6-317D-CF964B78FBC6}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{63F127D6-1CF8-73F6-317D-CF964B78FBC6}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{63F127D6-1CF8-73F6-317D-CF964B78FBC6}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{63F127D6-1CF8-73F6-317D-CF964B78FBC6}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{63F127D6-1CF8-73F6-317D-CF964B78FBC6}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {547E1E29-86EA-4EE1-809A-B0111658C7AB}
+	EndGlobalSection
+EndGlobal
