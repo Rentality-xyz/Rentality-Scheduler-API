@@ -1,39 +1,25 @@
 [
   {
-    "inputs": [],
-    "name": "latestRoundData",
-    "outputs": [
+    "type": "function",
+    "name": "updatePrices",
+    "constant": false,
+    "payable": false,
+    "inputs": [
       {
-        "internalType": "uint80",
-        "name": "roundId",
-        "type": "uint80"
-      },
-
-      {
-        "internalType": "int256",
-        "name": "answer",
-        "type": "int256"
-      },
-
-      {
-        "internalType": "uint256",
-        "name": "startedAt",
-        "type": "uint256"
-      },
-
-      {
-        "internalType": "uint256",
-        "name": "updatedAt",
-        "type": "uint256"
-      },
-
-      {
-        "internalType": "uint80",
-        "name": "answeredInRound",
-        "type": "uint80"
+        "type": "tuple[]",
+        "name": "oracleUpdate",
+        "components": [
+          {
+            "type": "address",
+            "name": "feed"
+          },
+          {
+            "type": "int256",
+            "name": "answer"
+          }
+        ]
       }
     ],
-    "stateMutability": "view",
-    "type": "function"
+    "outputs": []
   }
 ]
