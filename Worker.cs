@@ -1,7 +1,7 @@
-using System.Numerics;
 using Nethereum.Web3;
-using DotNetEnv;
-using Nethereum.ABI.FunctionEncoding.Attributes;
+using DotNetEnv; 
+using Rentality.PriceUpdater.Models;
+using Rentality.PriceUpdater.Services;
 
 namespace Rentality.PriceUpdater;
 
@@ -9,6 +9,7 @@ public class Worker : BackgroundService
 {
     private readonly ILogger<Worker> _logger;
     private Web3 _web3;
+    private int _chainId = 0;
     private string _walletPrivateKey = "";
     private string _providerApiUrl = "";
     private string _opBnbBnbToUsdPriceFeedAddress = "";
@@ -23,7 +24,7 @@ public class Worker : BackgroundService
     {
         _logger = logger;
         LoadConfiguration();
-        _web3 = new Web3(new Nethereum.Web3.Accounts.Account(_walletPrivateKey, 5611), _providerApiUrl);
+        _web3 = new Web3(new Nethereum.Web3.Accounts.Account(_walletPrivateKey, _chainId), _providerApiUrl);
     }
 
     private void LoadConfiguration()
@@ -33,6 +34,7 @@ public class Worker : BackgroundService
             Env.Load();
         }
 
+        string? chainId = Environment.GetEnvironmentVariable("CHAIN_ID");
         string? walletPrivateKey = Environment.GetEnvironmentVariable("WALLET_PRIVATE_KEY");
         string? providerApiUrl = Environment.GetEnvironmentVariable("PROVIDER_API_URL_5611");
         string? opBnbBnbToUsdPriceFeedAddress = Environment.GetEnvironmentVariable("OPBNB_BNB_USD_PRICE_FEED_ADDRESS");
@@ -42,6 +44,12 @@ public class Worker : BackgroundService
         string? rentalityUsdtToUsdPriceFeedAddress = Environment.GetEnvironmentVariable("RENTALITY_UTSD_USD_PRICE_FEED_ADDRESS");
         string aggregatorAbi = File.ReadAllText("Abis/aggregator.abi.json");
         string batchUpdaterAbi = File.ReadAllText("Abis/batch_price_updater.abi.json");
+
+        if (String.IsNullOrWhiteSpace(chainId) || !Int32.TryParse(chainId, out _chainId))
+        {
+            _logger.LogError("CHAIN_ID was not found or is empty or is not integer!");
+            throw new ArgumentException("CHAIN_ID was not found or is empty or is not integer!");
+        }
 
         if (String.IsNullOrWhiteSpace(walletPrivateKey))
         {
@@ -98,24 +106,22 @@ public class Worker : BackgroundService
         _rentalityUsdtToUsdPriceFeedAddress = rentalityUsdtToUsdPriceFeedAddress;
         _aggregatorAbi = aggregatorAbi;
         _batchUpdaterAbi = batchUpdaterAbi;
-
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        var priceAggregator = new PriceAggregatorService(_web3, _aggregatorAbi);
+        var batchPriceUpdater = new RentalityBatchPriceUpdater(_web3, _batchUpdaterAbi, _rentalityBatchUpdaterAddress, _walletPrivateKey);
+
         while (!stoppingToken.IsCancellationRequested)
         {
             try
             {
                 _logger.LogInformation("Fetching latest round data...");
-                LatestRoundData bnbToUsdLatestData = await GetLatestAggregatorData(_opBnbBnbToUsdPriceFeedAddress);
-                LatestRoundData usdtToUsdLatestData = await GetLatestAggregatorData(_opBnbUsdtToUsdPriceFeedAddress);
+                LatestRoundData bnbToUsdLatestData = await priceAggregator.GetLatestAggregatorData(_opBnbBnbToUsdPriceFeedAddress);
+                LatestRoundData usdtToUsdLatestData = await priceAggregator.GetLatestAggregatorData(_opBnbUsdtToUsdPriceFeedAddress);
 
                 _logger.LogInformation($"Latest price: BNB/USD: {bnbToUsdLatestData.Answer}, USDT/USD: {usdtToUsdLatestData.Answer}");
-
-                _logger.LogInformation("Updating batch prices...");
-                var rentalityBatchUpdaterContract = _web3.Eth.GetContract(_batchUpdaterAbi, _rentalityBatchUpdaterAddress);
-                var updatePricesFunction = rentalityBatchUpdaterContract.GetFunction("updatePrices");
 
                 var oracleUpdates = new List<OracleUpdate>
                     {
@@ -123,8 +129,8 @@ public class Worker : BackgroundService
                         new OracleUpdate { Feed = _rentalityUsdtToUsdPriceFeedAddress, Answer = usdtToUsdLatestData.Answer }
                     };
 
-                var txHash = await updatePricesFunction.SendTransactionAsync(_walletPrivateKey, oracleUpdates);
-
+                _logger.LogInformation("Updating batch prices...");
+                var txHash = await batchPriceUpdater.UpdarePrices(oracleUpdates);
                 _logger.LogInformation($"Transaction sent: {txHash}");
             }
             catch (Exception ex)
@@ -134,43 +140,5 @@ public class Worker : BackgroundService
 
             await Task.Delay(TimeSpan.FromHours(1), stoppingToken);
         }
-    }
-
-    private async Task<LatestRoundData> GetLatestAggregatorData(string priceFeedAddress)
-    {
-        var aggregatorContract = _web3.Eth.GetContract(_aggregatorAbi, priceFeedAddress);
-        var latestRoundDataFunction = aggregatorContract.GetFunction("latestRoundData");
-        var latestData = await latestRoundDataFunction.CallDeserializingToObjectAsync<LatestRoundData>();
-
-        return latestData;
-    }
-
-    [FunctionOutput]
-    public record LatestRoundData
-    {
-        [Parameter("uint80", "roundId", 1)]
-        public BigInteger RoundId { get; init; }
-
-        [Parameter("int256", "answer", 2)]
-        public BigInteger Answer { get; init; }
-
-        [Parameter("uint256", "startedAt", 3)]
-        public BigInteger StartedAt { get; init; }
-
-        [Parameter("uint256", "updatedAt", 4)]
-        public BigInteger UpdatedAt { get; init; }
-
-        [Parameter("uint80", "answeredInRound", 5)]
-        public BigInteger AnsweredInRound { get; init; }
-    }
-
-
-    public record class OracleUpdate
-    {
-        [Parameter("address", "feed", 1)]
-        public string Feed { get; init; }
-
-        [Parameter("int256", "answer", 2)]
-        public BigInteger Answer { get; init; }
-    }
+    }    
 }
