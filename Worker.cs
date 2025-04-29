@@ -17,6 +17,10 @@ public class Worker : BackgroundService
     private string _rentalityBatchUpdaterAddress = "";
     private string _rentalityBnbToUsdPriceFeedAddress = "";
     private string _rentalityUsdtToUsdPriceFeedAddress = "";
+    private string _emailForNotifications = "";
+    private string _smtpHost = "";
+    private string _smtpUser = "";
+    private string _smtpPassword = "";
     private string _aggregatorAbi = "";
     private string _batchUpdaterAbi = "";
 
@@ -42,6 +46,11 @@ public class Worker : BackgroundService
         _rentalityBatchUpdaterAddress = GetEnvString("RENTALITY_BATCH_UPDATER_ADDRESS");
         _rentalityBnbToUsdPriceFeedAddress = GetEnvString("RENTALITY_BNB_USD_PRICE_FEED_ADDRESS");
         _rentalityUsdtToUsdPriceFeedAddress = GetEnvString("RENTALITY_UTSD_USD_PRICE_FEED_ADDRESS");
+
+        _emailForNotifications = GetEnvString("NOTIFICATION_EMAIL");
+        _smtpHost = GetEnvString("SMTP_HOST");
+        _smtpUser = GetEnvString("SMTP_USER");
+        _smtpPassword = GetEnvString("SMTP_PASSWORD");
 
         string aggregatorAbi = File.ReadAllText("Abis/aggregator.abi.json");
         string batchUpdaterAbi = File.ReadAllText("Abis/batch_price_updater.abi.json");
@@ -95,6 +104,20 @@ public class Worker : BackgroundService
             catch (Exception ex) when (ex.Message.Contains("insufficient funds"))
             {
                 _logger.LogError("Wallet balance is too low");
+
+                try
+                {
+                    var account = new Nethereum.Web3.Accounts.Account(_walletPrivateKey);
+                    var balanceWei = await _web3.Eth.GetBalance.SendRequestAsync(account.Address);
+                    var balanceEth = Web3.Convert.FromWei(balanceWei);
+                    var emailService = new EmailService(_smtpHost, _smtpUser, _smtpPassword);
+
+                    await emailService.SendLowBalanceAlert(_smtpUser, _emailForNotifications, account.Address, balanceEth);
+                }
+                catch (Exception ex1)
+                {
+                    _logger.LogError(ex1, "An error occurred while sending email.");
+                }
 
             } 
             catch (Exception ex)
