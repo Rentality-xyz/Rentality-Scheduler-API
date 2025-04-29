@@ -34,58 +34,24 @@ public class Worker : BackgroundService
             Env.Load();
         }
 
-        string? chainId = Environment.GetEnvironmentVariable("CHAIN_ID");
-        string? walletPrivateKey = Environment.GetEnvironmentVariable("WALLET_PRIVATE_KEY");
-        string? providerApiUrl = Environment.GetEnvironmentVariable("PROVIDER_API_URL_5611");
-        string? opBnbBnbToUsdPriceFeedAddress = Environment.GetEnvironmentVariable("OPBNB_BNB_USD_PRICE_FEED_ADDRESS");
-        string? opBnbUsdtToUsdPriceFeedAddress = Environment.GetEnvironmentVariable("OPBNB_UTSD_USD_PRICE_FEED_ADDRESS");
-        string? rentalityBatchUpdaterAddress = Environment.GetEnvironmentVariable("RENTALITY_BATCH_UPDATER_ADDRESS");
-        string? rentalityBnbToUsdPriceFeedAddress = Environment.GetEnvironmentVariable("RENTALITY_BNB_USD_PRICE_FEED_ADDRESS");
-        string? rentalityUsdtToUsdPriceFeedAddress = Environment.GetEnvironmentVariable("RENTALITY_UTSD_USD_PRICE_FEED_ADDRESS");
+        string? chainIdString = GetEnvString("CHAIN_ID");
+        _walletPrivateKey = GetEnvString("WALLET_PRIVATE_KEY");
+        _providerApiUrl = GetEnvString("PROVIDER_API_URL_5611");
+        _opBnbBnbToUsdPriceFeedAddress = GetEnvString("OPBNB_BNB_USD_PRICE_FEED_ADDRESS");
+        _opBnbUsdtToUsdPriceFeedAddress = GetEnvString("OPBNB_UTSD_USD_PRICE_FEED_ADDRESS");
+        _rentalityBatchUpdaterAddress = GetEnvString("RENTALITY_BATCH_UPDATER_ADDRESS");
+        _rentalityBnbToUsdPriceFeedAddress = GetEnvString("RENTALITY_BNB_USD_PRICE_FEED_ADDRESS");
+        _rentalityUsdtToUsdPriceFeedAddress = GetEnvString("RENTALITY_UTSD_USD_PRICE_FEED_ADDRESS");
+
         string aggregatorAbi = File.ReadAllText("Abis/aggregator.abi.json");
         string batchUpdaterAbi = File.ReadAllText("Abis/batch_price_updater.abi.json");
 
-        if (String.IsNullOrWhiteSpace(chainId) || !Int32.TryParse(chainId, out _chainId))
+        if (!Int32.TryParse(chainIdString, out _chainId))
         {
-            _logger.LogError("CHAIN_ID was not found or is empty or is not integer!");
-            throw new ArgumentException("CHAIN_ID was not found or is empty or is not integer!");
-        }
+            _logger.LogError("CHAIN_ID is not integer!");
+            throw new ArgumentException("CHAIN_ID  is not integer!");
+        }         
 
-        if (String.IsNullOrWhiteSpace(walletPrivateKey))
-        {
-            _logger.LogError("WALLET_PRIVATE_KEY was not found or is empty!");
-            throw new ArgumentException("WALLET_PRIVATE_KEY was not found or is empty!");
-        }
-        if (String.IsNullOrWhiteSpace(providerApiUrl))
-        {
-            _logger.LogError("PROVIDER_API_URL was not found or is empty!");
-            throw new ArgumentException("PROVIDER_API_URL was not found or is empty!");
-        }
-        if (String.IsNullOrWhiteSpace(opBnbBnbToUsdPriceFeedAddress))
-        {
-            _logger.LogError("OPBNB_BNB_USD_PRICE_FEED_ADDRESS was not found or is empty!");
-            throw new ArgumentException("OPBNB_BNB_USD_PRICE_FEED_ADDRESS was not found or is empty!");
-        }
-        if (String.IsNullOrWhiteSpace(opBnbUsdtToUsdPriceFeedAddress))
-        {
-            _logger.LogError("OPBNB_UTSD_USD_PRICE_FEED_ADDRESS was not found or is empty!");
-            throw new ArgumentException("OPBNB_UTSD_USD_PRICE_FEED_ADDRESS was not found or is empty!");
-        }
-        if (String.IsNullOrWhiteSpace(rentalityBatchUpdaterAddress))
-        {
-            _logger.LogError("RENTALITY_BATCH_UPDATER_ADDRESS was not found or is empty!");
-            throw new ArgumentException("RENTALITY_BATCH_UPDATER_ADDRESS was not found or is empty!");
-        }
-        if (String.IsNullOrWhiteSpace(rentalityBnbToUsdPriceFeedAddress))
-        {
-            _logger.LogError("RENTALITY_BNB_USD_PRICE_FEED_ADDRESS was not found or is empty!");
-            throw new ArgumentException("RENTALITY_BNB_USD_PRICE_FEED_ADDRESS was not found or is empty!");
-        }
-        if (String.IsNullOrWhiteSpace(rentalityUsdtToUsdPriceFeedAddress))
-        {
-            _logger.LogError("RENTALITY_UTSD_USD_PRICE_FEED_ADDRESS was not found or is empty!");
-            throw new ArgumentException("RENTALITY_UTSD_USD_PRICE_FEED_ADDRESS was not found or is empty!");
-        }
         if (String.IsNullOrWhiteSpace(aggregatorAbi))
         {
             _logger.LogError("aggregatorAbi was not found or is empty!");
@@ -96,14 +62,7 @@ public class Worker : BackgroundService
             _logger.LogError("batchUpdaterAbi was not found or is empty!");
             throw new ArgumentException("batchUpdaterAbi was not found or is empty!");
         }
-
-        _walletPrivateKey = walletPrivateKey;
-        _providerApiUrl = providerApiUrl;
-        _opBnbBnbToUsdPriceFeedAddress = opBnbBnbToUsdPriceFeedAddress;
-        _opBnbUsdtToUsdPriceFeedAddress = opBnbUsdtToUsdPriceFeedAddress;
-        _rentalityBatchUpdaterAddress = rentalityBatchUpdaterAddress;
-        _rentalityBnbToUsdPriceFeedAddress = rentalityBnbToUsdPriceFeedAddress;
-        _rentalityUsdtToUsdPriceFeedAddress = rentalityUsdtToUsdPriceFeedAddress;
+          
         _aggregatorAbi = aggregatorAbi;
         _batchUpdaterAbi = batchUpdaterAbi;
     }
@@ -111,8 +70,8 @@ public class Worker : BackgroundService
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         var priceAggregator = new PriceAggregatorService(_web3, _aggregatorAbi);
-        var batchPriceUpdater = new RentalityBatchPriceUpdater(_web3, _batchUpdaterAbi, _rentalityBatchUpdaterAddress, _walletPrivateKey);
-
+        var batchPriceUpdater = new RentalityBatchPriceUpdater(_web3, _batchUpdaterAbi, _rentalityBatchUpdaterAddress, _walletPrivateKey, _logger);
+         
         while (!stoppingToken.IsCancellationRequested)
         {
             try
@@ -133,6 +92,11 @@ public class Worker : BackgroundService
                 var txHash = await batchPriceUpdater.UpdarePrices(oracleUpdates);
                 _logger.LogInformation($"Transaction sent: {txHash}");
             }
+            catch (Exception ex) when (ex.Message.Contains("insufficient funds"))
+            {
+                _logger.LogError("Wallet balance is too low");
+
+            } 
             catch (Exception ex)
             {
                 _logger.LogError(ex, "An error occurred while processing blockchain data.");
@@ -141,4 +105,17 @@ public class Worker : BackgroundService
             await Task.Delay(TimeSpan.FromHours(1), stoppingToken);
         }
     }    
+
+    private string GetEnvString(string envName)
+    {
+        string? envString = Environment.GetEnvironmentVariable(envName);
+
+        if (String.IsNullOrWhiteSpace(envString))
+        {
+            _logger.LogError($"{envName} was not found or is empty!");
+            throw new ArgumentException($"{envName} was not found or is empty!");
+        }
+
+        return envString;
+    }
 }
