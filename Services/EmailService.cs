@@ -15,7 +15,7 @@ internal class EmailService(string host, string user, string password)
 
         using var smtp = new SmtpClient(host)
         {
-            Port = 443,
+            Port = 587, 
             Credentials = new NetworkCredential(user, password),
             EnableSsl = true
         };
