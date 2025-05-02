@@ -52,7 +52,8 @@ app.MapPost("/update-prices", async (PriceAggregatorService priceAggregator,
       RentalityBatchPriceUpdater batchPriceUpdater,
       EmailService emailService,
       Web3 web3,
-      ILogger<Program> logger) =>
+      ILogger < PriceAggregatorService > priceAggregatorLogger,
+      ILogger <Program> logger) =>
 {
     try
     {
@@ -68,13 +69,22 @@ app.MapPost("/update-prices", async (PriceAggregatorService priceAggregator,
         LatestRoundData rentalityBnbToUsdLatestData = await priceAggregator.GetLatestAggregatorData(rentalityBnbToUsdPriceFeedAddress);
         LatestRoundData rentalityUsdtToUsdLatestData = await priceAggregator.GetLatestAggregatorData(rentalityUsdtToUsdPriceFeedAddress);
 
+        var (bnbToUsdLatestDataMainnet, usdtToUsdLatestDataMainnet) = await GetLatestAggregatorDataMainnet(envReader, priceAggregatorLogger);
+
         logger.LogInformation($"Latest price: BNB/USD: {bnbToUsdLatestData.Answer}, USDT/USD: {usdtToUsdLatestData.Answer}");
         logger.LogInformation($"Rentality Latest price: BNB/USD: {rentalityBnbToUsdLatestData.Answer}, USDT/USD: {rentalityUsdtToUsdLatestData.Answer}");
+        logger.LogInformation($"Mainnet Latest price: BNB/USD: {bnbToUsdLatestDataMainnet.Answer}, USDT/USD: {usdtToUsdLatestDataMainnet.Answer}");
+
+        if (rentalityBnbToUsdLatestData.Answer == bnbToUsdLatestDataMainnet.Answer && rentalityUsdtToUsdLatestData.Answer == usdtToUsdLatestDataMainnet.Answer)
+        {
+            logger.LogInformation("No changes! Skip prices updating!");
+            return Results.Ok("No changes.");
+        }
 
         var oracleUpdates = new List<OracleUpdate>
                     {
-                        new OracleUpdate { Feed = rentalityBnbToUsdPriceFeedAddress, Answer = bnbToUsdLatestData.Answer },
-                        new OracleUpdate { Feed = rentalityUsdtToUsdPriceFeedAddress, Answer = usdtToUsdLatestData.Answer }
+                        new OracleUpdate { Feed = rentalityBnbToUsdPriceFeedAddress, Answer = bnbToUsdLatestDataMainnet.Answer },
+                        new OracleUpdate { Feed = rentalityUsdtToUsdPriceFeedAddress, Answer = usdtToUsdLatestDataMainnet.Answer }
                     };
 
         logger.LogInformation("Updating batch prices...");
@@ -113,3 +123,18 @@ app.MapPost("/update-prices", async (PriceAggregatorService priceAggregator,
 });
 
 app.Run();
+
+async Task< (LatestRoundData, LatestRoundData)> GetLatestAggregatorDataMainnet(Rentality.Scheduler.API.Utils.EnvReader envReader, ILogger<PriceAggregatorService> logger)
+{
+    var opBnbBnbToUsdPriceFeedAddress = envReader.GetEnvString("OPBNB_BNB_USD_PRICE_FEED_ADDRESS_MAINNET");
+    var opBnbUsdtToUsdPriceFeedAddress = envReader.GetEnvString("OPBNB_UTSD_USD_PRICE_FEED_ADDRESS_MAINNET"); 
+     
+    var account = new Account(envReader.GetEnvString("WALLET_PRIVATE_KEY"), 204);
+    var web3 = new Web3(account, envReader.GetEnvString("PROVIDER_API_URL_204"));
+
+    var priceAggregator = new PriceAggregatorService(web3, logger);
+
+    LatestRoundData bnbToUsdLatestData = await priceAggregator.GetLatestAggregatorData(opBnbBnbToUsdPriceFeedAddress);
+    LatestRoundData usdtToUsdLatestData = await priceAggregator.GetLatestAggregatorData(opBnbUsdtToUsdPriceFeedAddress);
+    return (bnbToUsdLatestData, usdtToUsdLatestData);
+}
