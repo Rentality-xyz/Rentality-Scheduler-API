@@ -1,0 +1,25 @@
+[
+  {
+    "type": "function",
+    "name": "updatePrices",
+    "constant": false,
+    "payable": false,
+    "inputs": [
+      {
+        "type": "tuple[]",
+        "name": "oracleUpdate",
+        "components": [
+          {
+            "type": "address",
+            "name": "feed"
+          },
+          {
+            "type": "int256",
+            "name": "answer"
+          }
+        ]
+      }
+    ],
+    "outputs": []
+  }
+]
